@@ -237,15 +237,7 @@ tr:hover td{background:var(--sur2)}
 .spinner{width:28px;height:28px;border:3px solid var(--brd);border-top-color:var(--ac);border-radius:50%;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 
-/* LOADING SCREEN */
-#loading-screen{position:fixed;inset:0;background:var(--sur);z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;transition:opacity .3s}
-#loading-screen.hidden{opacity:0;pointer-events:none}
-.ls-logo{width:52px;height:52px;background:linear-gradient(135deg,#3b5bdb,#4c6ef5);border-radius:14px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(59,91,219,.4)}
-.ls-logo svg{color:#fff}
-.ls-text{font-size:13px;font-weight:500;color:var(--tx3)}
-.ls-bar{width:200px;height:3px;background:var(--brd);border-radius:3px;overflow:hidden}
-.ls-fill{height:100%;background:var(--ac);border-radius:3px;animation:lsfill 1.2s ease-in-out infinite}
-@keyframes lsfill{0%{width:0;margin-left:0}50%{width:60%;margin-left:20%}100%{width:0;margin-left:100%}}
+/* loading css removida */
 
 #toast{position:fixed;bottom:42px;left:50%;transform:translateX(-50%) translateY(8px);background:#111827;color:#e2e8f0;padding:9px 20px;border-radius:20px;font-size:12px;font-weight:600;z-index:999;box-shadow:var(--s3);opacity:0;transition:opacity .22s,transform .22s;pointer-events:none;border:1px solid rgba(255,255,255,.07)}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -266,12 +258,7 @@ canvas#evo-chart{width:100%!important;height:100%!important}
 </head>
 <body>
 
-<!-- LOADING -->
-<div id="loading-screen">
-  <div class="ls-logo"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
-  <div class="ls-text" id="ls-msg">Conectando con Supabase...</div>
-  <div class="ls-bar"><div class="ls-fill"></div></div>
-</div>
+<!-- loading screen removida -->
 
 <!-- TOPBAR -->
 <div id="topbar">
@@ -1065,18 +1052,30 @@ document.getElementById('btn-import-excel').addEventListener('click',()=>documen
 document.getElementById('import-file-input').addEventListener('change',function(){if(this.files[0])importExcel(this.files[0]);this.value='';});
 
 async function init(){
-  document.getElementById('loading-screen').style.display='none';
-  const ok=initSupabase();
-  if(!ok){setSyncState('error','Sin configurar — usa el boton config');renderSidebar();applyT();return;}
-  setSyncState('saving','Cargando...');
+  var ok=false;
+  try{ ok=initSupabase(); }catch(e){ setSyncState('error','Error init'); }
+  renderSidebar();
+  applyT();
+  if(!ok){ return; }
   try{
     await sbLoad();
     renderSidebar();
-    if(DB.trees.length){const t=DB.trees[0];UI.activeTreeId=t.id;UI.dataYear=treeYears(t)[treeYears(t).length-1]||'';refreshYears();refreshDataYearSel();renderCanvas();document.getElementById('s-tree').textContent=t.name;}
+    if(DB.trees.length){
+      var t=DB.trees[0];
+      UI.activeTreeId=t.id;
+      UI.dataYear=treeYears(t)[treeYears(t).length-1]||'';
+      refreshYears();
+      refreshDataYearSel();
+      renderCanvas();
+      document.getElementById('s-tree').textContent=t.name;
+    }
     applyT();
-  }catch(e){setSyncState('error','Error: '+e.message);renderSidebar();applyT();}
+  }catch(e){
+    setSyncState('error','Error carga');
+    console.error(e);
+  }
 }
-init();
+try{ init(); }catch(e){ console.error('init failed',e); }
 </script>
 
 <!-- MODAL EVOLUCION -->
