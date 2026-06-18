@@ -1065,33 +1065,16 @@ document.getElementById('btn-import-excel').addEventListener('click',()=>documen
 document.getElementById('import-file-input').addEventListener('change',function(){if(this.files[0])importExcel(this.files[0]);this.value='';});
 
 async function init(){
-  const ls=document.getElementById('loading-screen');const lm=document.getElementById('ls-msg');
+  document.getElementById('loading-screen').style.display='none';
   const ok=initSupabase();
-  if(!ok){
-    lm.textContent='Sin conexion — configura Supabase con el boton ⚙';
-    setTimeout(()=>{ls.classList.add('hidden');setSyncState('error','Sin configurar');},1800);
-    return;
-  }
-  lm.textContent='Cargando datos...';
-  // timeout de seguridad: si en 8 segundos no responde, oculta la pantalla igual
-  const loadTimeout = setTimeout(()=>{
-    ls.classList.add('hidden');
-    setSyncState('error','Tiempo de espera agotado — recarga la pagina');
-  }, 8000);
+  if(!ok){setSyncState('error','Sin configurar — usa el boton config');renderSidebar();applyT();return;}
+  setSyncState('saving','Cargando...');
   try{
     await sbLoad();
-    clearTimeout(loadTimeout);
-    lm.textContent='Listo';
-    setTimeout(()=>ls.classList.add('hidden'),300);
     renderSidebar();
     if(DB.trees.length){const t=DB.trees[0];UI.activeTreeId=t.id;UI.dataYear=treeYears(t)[treeYears(t).length-1]||'';refreshYears();refreshDataYearSel();renderCanvas();document.getElementById('s-tree').textContent=t.name;}
     applyT();
-  }catch(e){
-    clearTimeout(loadTimeout);
-    ls.classList.add('hidden');
-    setSyncState('error','Error al cargar: '+e.message);
-    renderSidebar();applyT();
-  }
+  }catch(e){setSyncState('error','Error: '+e.message);renderSidebar();applyT();}
 }
 init();
 </script>
