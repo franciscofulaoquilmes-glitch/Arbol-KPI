@@ -8,7 +8,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -237,28 +236,28 @@ tr:hover td{background:var(--sur2)}
 .spinner{width:28px;height:28px;border:3px solid var(--brd);border-top-color:var(--ac);border-radius:50%;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 
-/* loading css removida */
+/* LOADING SCREEN */
+#loading-screen{position:fixed;inset:0;background:var(--sur);z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;transition:opacity .3s}
+#loading-screen.hidden{opacity:0;pointer-events:none}
+.ls-logo{width:52px;height:52px;background:linear-gradient(135deg,#3b5bdb,#4c6ef5);border-radius:14px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(59,91,219,.4)}
+.ls-logo svg{color:#fff}
+.ls-text{font-size:13px;font-weight:500;color:var(--tx3)}
+.ls-bar{width:200px;height:3px;background:var(--brd);border-radius:3px;overflow:hidden}
+.ls-fill{height:100%;background:var(--ac);border-radius:3px;animation:lsfill 1.2s ease-in-out infinite}
+@keyframes lsfill{0%{width:0;margin-left:0}50%{width:60%;margin-left:20%}100%{width:0;margin-left:100%}}
 
 #toast{position:fixed;bottom:42px;left:50%;transform:translateX(-50%) translateY(8px);background:#111827;color:#e2e8f0;padding:9px 20px;border-radius:20px;font-size:12px;font-weight:600;z-index:999;box-shadow:var(--s3);opacity:0;transition:opacity .22s,transform .22s;pointer-events:none;border:1px solid rgba(255,255,255,.07)}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-
-/* CHART MODAL */
-#modal-chart .modal{width:660px;max-width:96vw}
-.chart-wrap{width:100%;height:320px;position:relative}
-canvas#evo-chart{width:100%!important;height:100%!important}
-.chart-legend{display:flex;gap:16px;justify-content:center;margin-top:10px}
-.leg-item{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--tx2)}
-.leg-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
-/* FILTER BAR */
-.filter-bar{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap}
-.filter-bar label{font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.07em}
-
 </style>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
-<!-- loading screen removida -->
+<!-- LOADING -->
+<div id="loading-screen">
+  <div class="ls-logo"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+  <div class="ls-text" id="ls-msg">Conectando con Supabase...</div>
+  <div class="ls-bar"><div class="ls-fill"></div></div>
+</div>
 
 <!-- TOPBAR -->
 <div id="topbar">
@@ -349,16 +348,7 @@ canvas#evo-chart{width:100%!important;height:100%!important}
             <button class="tb-btn pri" id="btn-add-year">&#xFF0B;</button>
           </div>
           <button class="tb-btn pri" id="btn-save-data">&#128190; Guardar</button>
-          <button class="tb-btn" id="btn-export-excel">&#8595; Excel</button>
-          <button class="tb-btn" id="btn-import-excel">&#8593; Importar</button>
         </div>
-      </div>
-      <div class="filter-bar">
-        <label>Filtrar por responsable:</label>
-        <select class="tb-sel" id="owner-filter" style="min-width:160px">
-          <option value="">Todos</option>
-        </select>
-        <button class="tb-btn" id="btn-clear-filter">&#x2715; Limpiar</button>
       </div>
       <div id="data-table-container"></div>
     </div>
@@ -457,7 +447,6 @@ canvas#evo-chart{width:100%!important;height:100%!important}
         <input type="number" id="kpi-yellow-inp" value="3" min="0" max="20" step="0.5"/>
         <span class="form-hint">Ej: 3 significa que entre 97%-100% de cumplimiento aparece amarillo</span>
       </div>
-      <div class="form-row"><label>Responsable</label><input type="text" id="kpi-owner-inp" placeholder="ej: Juan Lopez"/></div>
     </div>
     <div class="modal-foot">
       <button class="btn-modal cancel" data-close="modal-kpi">Cancelar</button>
@@ -484,11 +473,8 @@ canvas#evo-chart{width:100%!important;height:100%!important}
    Reemplaza estos valores con los tuyos.
    Tambien se pueden cargar desde el modal ⚙
 ═══════════════════════════════════════════════ */
-/* ═══ SQL ADICIONAL REQUERIDO EN SUPABASE (correr una sola vez):
-   ALTER TABLE kpis ADD COLUMN IF NOT EXISTS owner text;
-═══════════════════════════════════════════════════════════ */
-const DEFAULT_SUPABASE_URL = 'https://TU_PROJECT_URL.supabase.co';
-const DEFAULT_SUPABASE_KEY = 'TU_ANON_KEY';
+const DEFAULT_SUPABASE_URL = 'https://swzumhtlummrrunbvzua.supabase.co';
+const DEFAULT_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN3enVtaHRsdW1tcnJ1bmJ2enVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyMTI5MjIsImV4cCI6MjA5Njc4ODkyMn0.wic58rZ7FVlmzb-YCqW2s4yplISl0ali9ODT_Ac9jaM';
 
 /* ═══ CONSTANTES ══════════════════════════════════════════════ */
 const AREA_COLORS=['#3b5bdb','#2f9e44','#e03131','#e67700','#7048e8','#0c8599','#d6336c','#5c940d','#d9480f','#1971c2'];
@@ -542,7 +528,7 @@ async function sbLoad(){
     DB.areas=ar.data||[];
     DB.trees=(tr.data||[]).map(t=>({
       ...t,
-      kpis:(kp.data||[]).filter(k=>k.tree_id===t.id).map(k=>({id:k.id,name:k.name,parent:k.parent_id||'ROOT',unit:k.unit,type:k.kpi_type,yellow:k.yellow_zone,owner:k.owner||'',tree_id:k.tree_id})),
+      kpis:(kp.data||[]).filter(k=>k.tree_id===t.id).map(k=>({id:k.id,name:k.name,parent:k.parent_id||'ROOT',unit:k.unit,type:k.kpi_type,yellow:k.yellow_zone,tree_id:k.tree_id})),
       data:(dt.data||[]).filter(d=>d.tree_id===t.id).map(d=>({kpiId:d.kpi_id,month:d.month,real:d.real,target:d.target,ytdReal:d.ytd_real,ytdTarget:d.ytd_target})),
       areaId:t.area_id,
     }));
@@ -574,7 +560,7 @@ async function sbDeleteTree(id){
 }
 async function sbUpsertKpi(kpi,treeId){
   if(!SB)return;setSyncState('saving','Guardando...');
-  const{error}=await SB.from('kpis').upsert({id:kpi.id,tree_id:treeId,name:kpi.name,parent_id:kpi.parent==='ROOT'?null:kpi.parent,unit:kpi.unit||null,kpi_type:kpi.type,yellow_zone:kpi.yellow||3,owner:kpi.owner||null});
+  const{error}=await SB.from('kpis').upsert({id:kpi.id,tree_id:treeId,name:kpi.name,parent_id:kpi.parent==='ROOT'?null:kpi.parent,unit:kpi.unit||null,kpi_type:kpi.type,yellow_zone:kpi.yellow||3});
   if(error){setSyncState('error',error.message);return;}
   setSyncState('ok','Guardado');
 }
@@ -645,21 +631,7 @@ function renderSidebar(){
 }
 function tHTML(t,color){return'<div class="t-item'+(UI.activeTreeId===t.id?' active':'')+'" data-tid="'+t.id+'"><span class="t-ic" style="color:'+color+'">&#9658;</span><span class="t-nm">'+t.name+'</span><div class="t-acts"><button class="ic-btn" data-ak="'+t.id+'" title="+KPI">&#xFF0B;</button><button class="ic-btn" data-et="'+t.id+'">&#9998;</button><button class="ic-btn del" data-dt="'+t.id+'">&#x2715;</button></div></div>';}
 
-function selectTree(id){
-  UI.activeTreeId=id;
-  UI.collapsed=loadCollapsed(id);
-  UI.highlighted=null;
-  UI.currentMonth='';
-  UI.currentYear='';
-  document.getElementById('search-input').value='';
-  refreshYears();
-  renderSidebar();
-  renderCanvas();
-  const tree=gTree(id);
-  document.getElementById('s-tree').textContent=tree?tree.name:'-';
-  refreshDataYearSel();
-  if(UI.activeTab==='data') renderDataTab();
-}
+function selectTree(id){UI.activeTreeId=id;UI.collapsed=new Set();UI.highlighted=null;document.getElementById('search-input').value='';refreshYears();renderSidebar();renderCanvas();const tree=gTree(id);document.getElementById('s-tree').textContent=tree?tree.name:'-';refreshDataYearSel();}
 
 /* ═══ CANVAS ══════════════════════════════════════════════════ */
 function buildTree(tree,month){
@@ -702,11 +674,7 @@ function renderCanvas(){
       '<div class="c-foot"><div><div class="c-lbl">Cumpl.</div><div class="c-comp '+(color!=='grey'?color:'')+'">'+(c!==null?c.toFixed(1)+'%':'-')+'</div></div>'+
       (nd?'<span style="font-size:9px;color:var(--tx3)">s/d</span>':'<div class="sem '+color+'"></div>')+'</div>';
     card.addEventListener('mouseenter',e=>showTT(e,node,r,t,c));card.addEventListener('mousemove',moveTT);card.addEventListener('mouseleave',hideTT);
-    card.addEventListener('click',e=>{
-      const togEl=e.target.closest('[data-tog]');
-      if(togEl){e.stopPropagation();togCol(togEl.dataset.tog);}
-      else if(!e.target.closest('.c-tog')){openEvoChart(node);}
-    });
+    card.addEventListener('click',e=>{if(e.target.dataset.tog){e.stopPropagation();togCol(e.target.dataset.tog);}});
     nEl.appendChild(card);
   });
   updateStatus({gr,rd,yw,total:all.length});
@@ -720,14 +688,6 @@ function refreshDataYearSel(){
   sel.innerHTML=yrs.length?yrs.map(y=>'<option value="'+y+'"'+(y===UI.dataYear?' selected':'')+'>'+y+'</option>').join(''):'<option>-</option>';
   sel.value=UI.dataYear;
 }
-function refreshOwnerFilter(kpis){
-  const sel=document.getElementById('owner-filter');
-  const cur=sel.value;
-  const owners=[...new Set(kpis.map(k=>k.owner||'').filter(Boolean))].sort();
-  sel.innerHTML='<option value="">Todos</option>'+owners.map(o=>'<option value="'+o+'"'+(o===cur?' selected':'')+'>'+o+'</option>').join('');
-  sel.value=cur;
-}
-
 function renderDataTab(){
   const tree=gTree(UI.activeTreeId);const ct=document.getElementById('data-table-container');const tit=document.getElementById('data-title');
   ct.innerHTML='';
@@ -735,47 +695,22 @@ function renderDataTab(){
   tit.textContent=tree.name;
   if(!tree.kpis?.length){ct.innerHTML='<p style="color:var(--tx3);font-size:13px;padding:20px;font-weight:500">Este arbol no tiene KPIs. Agregalo desde el menu lateral.</p>';return;}
   const year=UI.dataYear;if(!year){ct.innerHTML='<p style="color:var(--tx3);font-size:13px;padding:20px">Selecciona o agrega un año.</p>';return;}
-
-  const ownerFilter=document.getElementById('owner-filter').value;
-  refreshOwnerFilter(tree.kpis);
-
   const allM=Array.from({length:12},(_,i)=>mKey(year,i+1));
-  const kpis=ownerFilter?tree.kpis.filter(k=>(k.owner||'')=== ownerFilter):tree.kpis;
-  const dm={};(tree.data||[]).forEach(d=>{dm[d.kpiId+'__'+d.month]=d;});
+  const kpis=tree.kpis;const dm={};(tree.data||[]).forEach(d=>{dm[d.kpiId+'__'+d.month]=d;});
   const wrap=document.createElement('div');wrap.className='data-table-wrap';
-
-  // sticky cols: s0=KPI s1=Tipo s2=Padre s3=Resp s4=acciones
-  let html='<table><thead><tr>';
-  html+='<th class="stk s0" rowspan="2">KPI</th>';
-  html+='<th class="stk s1" rowspan="2">Tipo</th>';
-  html+='<th class="stk s2" rowspan="2">Padre</th>';
-  html+='<th class="stk" style="left:308px;min-width:110px;max-width:110px;border-right:1px solid var(--brd)" rowspan="2">Responsable</th>';
-  html+='<th class="stk" style="left:418px;min-width:52px;border-right:2px solid var(--brd2)" rowspan="2"></th>';
+  let html='<table><thead><tr><th class="stk s0" rowspan="2">KPI</th><th class="stk s1" rowspan="2">Tipo</th><th class="stk s2" rowspan="2">Padre</th><th class="stk s3" rowspan="2"></th>';
   allM.forEach(m=>{html+='<th class="mo-hd" colspan="4">'+MES_LARGO[parseInt(m.split('-')[1],10)-1]+'</th>';});
-  html+='</tr><tr>';
-  allM.forEach(()=>{html+='<th class="mo-sub">Real</th><th>Meta</th><th>YTD R</th><th>YTD M</th>';});
-  html+='</tr></thead><tbody>';
-
-  if(!kpis.length){html+='<tr><td colspan="100" style="padding:20px;text-align:center;color:var(--tx3);font-size:13px">Sin KPIs para este responsable</td></tr>';}
-
+  html+='</tr><tr>';allM.forEach(()=>{html+='<th class="mo-sub">Real</th><th>Meta</th><th>YTD R</th><th>YTD M</th>';});html+='</tr></thead><tbody>';
   kpis.forEach(k=>{
-    const pk=tree.kpis.find(x=>x.id===k.parent);const pl=k.parent==='ROOT'?'- Raiz':(pk?pk.name:k.parent);
-    html+='<tr data-kpi="'+k.id+'">';
-    html+='<td class="td-kpi stk s0">'+k.name+'</td>';
-    html+='<td class="stk s1"><span style="font-size:9.5px;color:var(--tx3);font-weight:700">'+(k.type==='higher_is_better'?'&#8593;':'&#8595;')+' '+(k.unit||'')+'</span></td>';
-    html+='<td class="stk s2"><span style="font-size:10.5px;color:var(--tx3)">'+pl+'</span></td>';
-    html+='<td class="stk" style="left:308px;min-width:110px;max-width:110px;border-right:1px solid var(--brd)"><span style="font-size:10.5px;color:var(--tx2);font-weight:500">'+(k.owner||'<span style=color:var(--tx3)>-</span>')+'</span></td>';
-    html+='<td class="stk" style="left:418px;min-width:52px;border-right:2px solid var(--brd2)"><div style="display:flex;gap:2px">';
-    html+='<button class="ic-btn btn-ek" data-kid="'+k.id+'" style="width:18px;height:18px">&#9998;</button>';
-    html+='<button class="ic-btn del btn-dk" data-kid="'+k.id+'" style="width:18px;height:18px">&#x2715;</button>';
-    html+='</div></td>';
+    const pk=kpis.find(x=>x.id===k.parent);const pl=k.parent==='ROOT'?'- Raiz':(pk?pk.name:k.parent);
+    html+='<tr data-kpi="'+k.id+'"><td class="td-kpi stk s0">'+k.name+'</td><td class="stk s1"><span style="font-size:9.5px;color:var(--tx3);font-weight:700">'+(k.type==='higher_is_better'?'&#8593;':'&#8595;')+' '+(k.unit||'')+'</span></td><td class="stk s2"><span style="font-size:10.5px;color:var(--tx3)">'+pl+'</span></td>';
+    html+='<td class="stk s3"><div style="display:flex;gap:3px"><button class="ic-btn btn-ek" data-kid="'+k.id+'" style="width:19px;height:19px">&#9998;</button><button class="ic-btn del btn-dk" data-kid="'+k.id+'" style="width:19px;height:19px">&#x2715;</button></div></td>';
     allM.forEach(m=>{const d=dm[k.id+'__'+m]||{};
       html+='<td class="mo-sub"><input class="cell-input" data-kpi="'+k.id+'" data-month="'+m+'" data-field="real" value="'+(d.real??'')+'" placeholder="-"/></td>';
       html+='<td><input class="cell-input" data-kpi="'+k.id+'" data-month="'+m+'" data-field="target" value="'+(d.target??'')+'" placeholder="-"/></td>';
       html+='<td><input class="cell-input" data-kpi="'+k.id+'" data-month="'+m+'" data-field="ytdReal" value="'+(d.ytdReal??'')+'" placeholder="-"/></td>';
       html+='<td><input class="cell-input" data-kpi="'+k.id+'" data-month="'+m+'" data-field="ytdTarget" value="'+(d.ytdTarget??'')+'" placeholder="-"/></td>';
-    });
-    html+='</tr>';
+    });html+='</tr>';
   });
   html+='</tbody></table>';wrap.innerHTML=html;ct.appendChild(wrap);
   wrap.querySelectorAll('.cell-input').forEach(inp=>inp.addEventListener('input',()=>inp.classList.add('changed')));
@@ -868,7 +803,6 @@ function openKpiModal(treeId,ekid){
   document.getElementById('kpi-unit-inp').value=kpi?(kpi.unit||''):'%';
   document.getElementById('kpi-type-sel').value=kpi?kpi.type:'higher_is_better';
   document.getElementById('kpi-yellow-inp').value=kpi?(kpi.yellow??3):3;
-  document.getElementById('kpi-owner-inp').value=kpi?(kpi.owner||''):'';
   const ps=document.getElementById('kpi-parent-sel');
   ps.innerHTML='<option value="ROOT">- Raiz (sin padre)</option>'+tree.kpis.filter(k=>k.id!==ekid).map(k=>'<option value="'+k.id+'"'+(kpi?.parent===k.id?' selected':'')+'>'+k.name+'</option>').join('');
   openM('modal-kpi');setTimeout(()=>document.getElementById('kpi-name-inp').focus(),80);
@@ -878,10 +812,9 @@ document.getElementById('btn-save-kpi').addEventListener('click',async()=>{
   const tree=gTree(UI._kpiTreeId);if(!tree)return;
   const parent=document.getElementById('kpi-parent-sel').value;const unit=document.getElementById('kpi-unit-inp').value.trim();
   const type=document.getElementById('kpi-type-sel').value;const yellow=parseFloat(document.getElementById('kpi-yellow-inp').value)||3;
-  const owner=document.getElementById('kpi-owner-inp').value.trim();
-  if(UI.editKpiId){const k=tree.kpis.find(k=>k.id===UI.editKpiId);Object.assign(k,{name,parent,unit,type,yellow,owner});await sbUpsertKpi(k,tree.id);}
+  if(UI.editKpiId){const k=tree.kpis.find(k=>k.id===UI.editKpiId);Object.assign(k,{name,parent,unit,type,yellow});await sbUpsertKpi(k,tree.id);}
   else{
-    const id=uid();const kpi={id,name,parent,unit,type,yellow,owner};tree.kpis.push(kpi);
+    const id=uid();const kpi={id,name,parent,unit,type,yellow};tree.kpis.push(kpi);
     treeYears(tree).forEach(yr=>{Array.from({length:12},(_,i)=>mKey(yr,i+1)).forEach(m=>{tree.data.push({kpiId:id,month:m,real:null,target:null,ytdReal:null,ytdTarget:null});});});
     await sbUpsertKpi(kpi,tree.id);
   }
@@ -919,8 +852,8 @@ document.getElementById('month-sel').addEventListener('change',function(){UI.cur
 document.getElementById('btn-prev').addEventListener('click',()=>{const i=UI.months.indexOf(UI.currentMonth);if(i>0){UI.currentMonth=UI.months[i-1];document.getElementById('month-sel').value=UI.currentMonth;renderCanvas();}else{const yi=UI.years.indexOf(UI.currentYear);if(yi>0){UI.currentYear=UI.years[yi-1];document.getElementById('year-sel').value=UI.currentYear;updateMonthSel();UI.currentMonth=UI.months[UI.months.length-1]||'';document.getElementById('month-sel').value=UI.currentMonth;renderCanvas();}}});
 document.getElementById('btn-next').addEventListener('click',()=>{const i=UI.months.indexOf(UI.currentMonth);if(i<UI.months.length-1){UI.currentMonth=UI.months[i+1];document.getElementById('month-sel').value=UI.currentMonth;renderCanvas();}else{const yi=UI.years.indexOf(UI.currentYear);if(yi<UI.years.length-1){UI.currentYear=UI.years[yi+1];document.getElementById('year-sel').value=UI.currentYear;updateMonthSel();UI.currentMonth=UI.months[0]||'';document.getElementById('month-sel').value=UI.currentMonth;renderCanvas();}}});
 document.getElementById('ytd-tog').addEventListener('change',function(){UI.ytd=this.checked;renderCanvas();});
-document.getElementById('btn-expand').addEventListener('click',()=>{UI.collapsed.clear();saveCollapsed();renderCanvas();});
-document.getElementById('btn-collapse').addEventListener('click',()=>{const tree=gTree(UI.activeTreeId);if(!tree)return;tree.kpis.forEach(k=>{if(tree.kpis.some(x=>x.parent===k.id))UI.collapsed.add(k.id);});saveCollapsed();renderCanvas();});
+document.getElementById('btn-expand').addEventListener('click',()=>{UI.collapsed.clear();renderCanvas();});
+document.getElementById('btn-collapse').addEventListener('click',()=>{const tree=gTree(UI.activeTreeId);if(!tree)return;tree.kpis.forEach(k=>{if(tree.kpis.some(x=>x.parent===k.id))UI.collapsed.add(k.id);});renderCanvas();});
 document.getElementById('btn-zin').addEventListener('click',()=>setZoom(UI.zoom*1.15));
 document.getElementById('btn-zout').addEventListener('click',()=>setZoom(UI.zoom/1.15));
 document.getElementById('btn-zreset').addEventListener('click',()=>{UI.zoom=1;UI.panX=60;UI.panY=30;applyT();});
@@ -951,7 +884,7 @@ window.addEventListener('mouseup',()=>{drag.on=false;vc.classList.remove('draggi
 function showTT(e,node,r,t,c){const tt=document.getElementById('tooltip');const ytd=UI.ytd;tt.innerHTML='<strong>'+node.name+'</strong><div class="tt-row"><span class="tt-k">Real'+(ytd?' YTD':'')+'</span><span class="tt-v">'+fmt(r,node.unit)+'</span></div><div class="tt-row"><span class="tt-k">Meta'+(ytd?' YTD':'')+'</span><span class="tt-v">'+fmt(t,node.unit)+'</span></div><div class="tt-row"><span class="tt-k">Cumpl.</span><span class="tt-v">'+(c!==null?c.toFixed(1)+'%':'-')+'</span></div><div class="tt-row"><span class="tt-k">Tipo</span><span class="tt-v">'+(node.type==='higher_is_better'?'&#8593; Mayor':'&#8595; Menor')+'</span></div>';tt.classList.add('vis');moveTT(e);}
 function moveTT(e){const tt=document.getElementById('tooltip');const x=e.clientX+14,y=e.clientY-10;tt.style.left=(x+tt.offsetWidth>window.innerWidth?e.clientX-tt.offsetWidth-14:x)+'px';tt.style.top=(y+tt.offsetHeight>window.innerHeight?e.clientY-tt.offsetHeight-10:y)+'px';}
 function hideTT(){document.getElementById('tooltip').classList.remove('vis');}
-function togCol(id){if(UI.collapsed.has(id))UI.collapsed.delete(id);else UI.collapsed.add(id);saveCollapsed();renderCanvas();}
+function togCol(id){if(UI.collapsed.has(id))UI.collapsed.delete(id);else UI.collapsed.add(id);renderCanvas();}
 function updateStatus({gr=0,rd=0,yw=0,total=0}){document.getElementById('s-gr').textContent=gr;document.getElementById('s-rd').textContent=rd;document.getElementById('s-yw').textContent=yw;document.getElementById('s-total').textContent=total;}
 
 /* ═══ EXPORT ══════════════════════════════════════════════════ */
@@ -962,166 +895,23 @@ document.getElementById('btn-pdf').addEventListener('click',async()=>{const ov=d
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._tm);t._tm=setTimeout(()=>t.classList.remove('show'),2600);}
 
 /* ═══ INIT ════════════════════════════════════════════════════ */
-
-/* ═══ CHART EVOLUTION ═══════════════════════════════════════════════ */
-function openEvoChart(node){
-  const tree=gTree(UI.activeTreeId);if(!tree)return;
-  const kpi=tree.kpis.find(k=>k.id===node.id);if(!kpi)return;
-  const ytd=UI.ytd;
-  const allData=(tree.data||[]).filter(d=>d.kpiId===kpi.id&&d.real!==null&&d.target!==null)
-    .sort((a,b)=>a.month.localeCompare(b.month));
-  if(!allData.length){showToast('Sin datos historicos para '+kpi.name);return;}
-  const labels=allData.map(d=>mLabel(d.month));
-  const reals=allData.map(d=>ytd?d.ytdReal:d.real);
-  const targets=allData.map(d=>ytd?d.ytdTarget:d.target);
-  document.getElementById('chart-title').textContent=kpi.name;
-  document.getElementById('chart-sub').textContent=(kpi.owner?'Responsable: '+kpi.owner+' · ':'')+'Unidad: '+(kpi.unit||'-')+' · '+(kpi.type==='higher_is_better'?'↑ Mayor = mejor':'↓ Menor = mejor');
-  if(evoChartInstance){evoChartInstance.destroy();evoChartInstance=null;}
-  const ctx=document.getElementById('evo-chart').getContext('2d');
-  evoChartInstance=new Chart(ctx,{
-    type:'bar',
-    data:{
-      labels,
-      datasets:[
-        {label:'Real',data:reals,backgroundColor:reals.map((r,i)=>{
-          const t=targets[i];if(r===null||t===null)return'#cbd5e1';
-          const ratio=kpi.type==='lower_is_better'?t/r:r/t;
-          return ratio>=1?'rgba(47,158,68,0.82)':ratio>=(1-(kpi.yellow||3)/100)?'rgba(230,119,0,0.82)':'rgba(224,49,49,0.82)';
-        }),borderRadius:5,borderSkipped:false,order:1},
-        {label:'Meta',data:targets,type:'line',borderColor:'#64748b',borderWidth:2,borderDash:[5,4],
-         pointBackgroundColor:'#64748b',pointRadius:3,fill:false,tension:0,order:0}
-      ]
-    },
-    options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){return ctx.dataset.label+': '+(ctx.raw!==null?ctx.raw+' '+(kpi.unit||''):'-');}}}},
-      scales:{
-        x:{grid:{display:false},ticks:{font:{family:'Inter',size:10},color:'#8898b0'}},
-        y:{grid:{color:'#e2e7f0'},ticks:{font:{family:'JetBrains Mono',size:10},color:'#8898b0'},
-           title:{display:!!(kpi.unit),text:kpi.unit||'',font:{size:10},color:'#8898b0'}}
-      }
-    }
-  });
-  openM('modal-chart');
-}
-
-/* ═══ EXPORT EXCEL ════════════════════════════════════════════════════ */
-function exportExcel(){
-  const tree=gTree(UI.activeTreeId);if(!tree){showToast('Selecciona un arbol primero');return;}
-  const year=UI.dataYear;if(!year){showToast('Selecciona un año primero');return;}
-  const allM=Array.from({length:12},(_,i)=>mKey(year,i+1));
-  const dm={};(tree.data||[]).forEach(d=>{dm[d.kpiId+'__'+d.month]=d;});
-  const h1=['KPI','ID','Padre','Tipo','Unidad','Responsable'];
-  allM.forEach(m=>{const mes=MES_LARGO[parseInt(m.split('-')[1],10)-1];h1.push(mes,'','','');});
-  const h2=['','','','','',''];allM.forEach(()=>h2.push('Real','Meta','YTD Real','YTD Meta'));
-  const rows=[h1,h2];
-  tree.kpis.forEach(k=>{
-    const pk=tree.kpis.find(x=>x.id===k.parent);
-    const row=[k.name,k.id,k.parent==='ROOT'?'Raiz':(pk?pk.name:k.parent),k.type==='higher_is_better'?'Mayor=mejor':'Menor=mejor',k.unit||'',k.owner||''];
-    allM.forEach(m=>{const d=dm[k.id+'__'+m]||{};row.push(d.real??'',d.target??'',d.ytdReal??'',d.ytdTarget??'');});
-    rows.push(row);
-  });
-  const ws=XLSX.utils.aoa_to_sheet(rows);
-  if(!ws['!merges'])ws['!merges']=[];
-  allM.forEach((_,i)=>{const col=6+i*4;ws['!merges'].push({s:{r:0,c:col},e:{r:0,c:col+3}});});
-  ws['!cols']=[{wch:22},{wch:20},{wch:18},{wch:14},{wch:8},{wch:16},...allM.flatMap(()=>[{wch:9},{wch:9},{wch:9},{wch:9}])];
-  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Datos '+year);
-  XLSX.writeFile(wb,'KPI_'+tree.name+'_'+year+'.xlsx');
-  showToast('Excel exportado');
-}
-
-/* ═══ IMPORT EXCEL ════════════════════════════════════════════════════ */
-async function importExcel(file){
-  const tree=gTree(UI.activeTreeId);if(!tree){showToast('Selecciona un arbol primero');return;}
-  const year=UI.dataYear;if(!year){showToast('Selecciona un año primero');return;}
-  try{
-    const buf=await file.arrayBuffer();
-    const wb=XLSX.read(buf,{type:'array'});
-    const ws=wb.Sheets[wb.SheetNames[0]];
-    const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
-    if(rows.length<3){showToast('Archivo sin datos');return;}
-    const allM=Array.from({length:12},(_,i)=>mKey(year,i+1));
-    const colMonth={};
-    allM.forEach((m,i)=>{const base=6+i*4;colMonth[base]={month:m,field:'real'};colMonth[base+1]={month:m,field:'target'};colMonth[base+2]={month:m,field:'ytdReal'};colMonth[base+3]={month:m,field:'ytdTarget'};});
-    const kpiById={};tree.kpis.forEach(k=>{kpiById[k.id]=k;});
-    let updated=0;
-    rows.slice(2).forEach(row=>{
-      const kpiId=row[1];const kpiName=row[0];
-      const kpi=kpiById[kpiId]||(kpiName?tree.kpis.find(k=>k.name===kpiName):null);
-      if(!kpi)return;
-      Object.entries(colMonth).forEach(([col,{month,field}])=>{
-        const v=row[parseInt(col)];
-        const num=(v===''||v===null||v===undefined)?null:parseFloat(v);
-        if(isNaN(num)&&num!==null)return;
-        let entry=tree.data.find(d=>d.kpiId===kpi.id&&d.month===month);
-        if(!entry){entry={kpiId:kpi.id,month,real:null,target:null,ytdReal:null,ytdTarget:null};tree.data.push(entry);}
-        entry[field]=num;updated++;
-      });
-    });
-    await sbSaveData(tree,year);refreshYears();renderDataTab();renderCanvas();
-    showToast('Importado: '+Math.floor(updated/4)+' KPIs actualizados');
-  }catch(e){console.error(e);showToast('Error al leer el archivo: '+e.message);}
-}
-
-/* ═══ FILTER & IMPORT/EXPORT EVENTS ═════════════════════════════════ */
-document.getElementById('owner-filter').addEventListener('change',()=>renderDataTab());
-document.getElementById('btn-clear-filter').addEventListener('click',()=>{document.getElementById('owner-filter').value='';renderDataTab();});
-document.getElementById('btn-export-excel').addEventListener('click',exportExcel);
-document.getElementById('btn-import-excel').addEventListener('click',()=>document.getElementById('import-file-input').click());
-document.getElementById('import-file-input').addEventListener('change',function(){if(this.files[0])importExcel(this.files[0]);this.value='';});
-
 async function init(){
-  // si hay credenciales hardcodeadas y no estan en localStorage, guardarlas
-  var cfg=getConfig();
-  if(!cfg.url && !DEFAULT_SUPABASE_URL.includes('TU_PROJECT_URL')){
-    saveConfig(DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_KEY);
+  const ls=document.getElementById('loading-screen');const lm=document.getElementById('ls-msg');
+  const ok=initSupabase();
+  if(!ok){
+    lm.textContent='Sin conexion — configura Supabase con el boton ⚙';
+    setTimeout(()=>{ls.classList.add('hidden');setSyncState('error','Sin configurar');},1800);
+    return;
   }
-  var ok=false;
-  try{ ok=initSupabase(); }catch(e){ setSyncState('error','Error init'); }
+  lm.textContent='Cargando datos...';
+  await sbLoad();
+  lm.textContent='Listo';
+  setTimeout(()=>ls.classList.add('hidden'),400);
   renderSidebar();
+  if(DB.trees.length){const t=DB.trees[0];UI.activeTreeId=t.id;UI.dataYear=treeYears(t)[treeYears(t).length-1]||'';refreshYears();refreshDataYearSel();renderCanvas();document.getElementById('s-tree').textContent=t.name;}
   applyT();
-  if(!ok){ return; }
-  try{
-    await sbLoad();
-    renderSidebar();
-    if(DB.trees.length){
-      var t=DB.trees[0];
-      UI.activeTreeId=t.id;
-      UI.dataYear=treeYears(t)[treeYears(t).length-1]||'';
-      refreshYears();
-      refreshDataYearSel();
-      renderCanvas();
-      document.getElementById('s-tree').textContent=t.name;
-    }
-    applyT();
-  }catch(e){
-    setSyncState('error','Error carga');
-    console.error(e);
-  }
 }
-try{ init(); }catch(e){ console.error('init failed',e); }
+init();
 </script>
-
-<!-- MODAL EVOLUCION -->
-<div class="modal-bg" id="modal-chart">
-  <div class="modal">
-    <div class="modal-head">
-      <div>
-        <h2 id="chart-title">Evolucion</h2>
-        <div style="font-size:10px;color:var(--tx3);margin-top:2px" id="chart-sub"></div>
-      </div>
-      <button class="modal-close" data-close="modal-chart">&#x2715;</button>
-    </div>
-    <div class="modal-body" style="padding:16px 20px">
-      <div class="chart-wrap"><canvas id="evo-chart"></canvas></div>
-      <div class="chart-legend">
-        <div class="leg-item"><div class="leg-dot" style="background:#3b5bdb"></div>Real</div>
-        <div class="leg-item"><div class="leg-dot" style="background:#e2e8f0;border:1.5px solid #94a3b8"></div>Meta</div>
-      </div>
-    </div>
-  </div>
-</div>
-<!-- hidden file input for import -->
-<input type="file" id="import-file-input" accept=".xlsx,.xls" style="display:none"/>
-
 </body>
 </html>
