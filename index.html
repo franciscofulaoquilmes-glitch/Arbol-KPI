@@ -1073,12 +1073,25 @@ async function init(){
     return;
   }
   lm.textContent='Cargando datos...';
-  await sbLoad();
-  lm.textContent='Listo';
-  setTimeout(()=>ls.classList.add('hidden'),400);
-  renderSidebar();
-  if(DB.trees.length){const t=DB.trees[0];UI.activeTreeId=t.id;UI.dataYear=treeYears(t)[treeYears(t).length-1]||'';refreshYears();refreshDataYearSel();renderCanvas();document.getElementById('s-tree').textContent=t.name;}
-  applyT();
+  // timeout de seguridad: si en 8 segundos no responde, oculta la pantalla igual
+  const loadTimeout = setTimeout(()=>{
+    ls.classList.add('hidden');
+    setSyncState('error','Tiempo de espera agotado — recarga la pagina');
+  }, 8000);
+  try{
+    await sbLoad();
+    clearTimeout(loadTimeout);
+    lm.textContent='Listo';
+    setTimeout(()=>ls.classList.add('hidden'),300);
+    renderSidebar();
+    if(DB.trees.length){const t=DB.trees[0];UI.activeTreeId=t.id;UI.dataYear=treeYears(t)[treeYears(t).length-1]||'';refreshYears();refreshDataYearSel();renderCanvas();document.getElementById('s-tree').textContent=t.name;}
+    applyT();
+  }catch(e){
+    clearTimeout(loadTimeout);
+    ls.classList.add('hidden');
+    setSyncState('error','Error al cargar: '+e.message);
+    renderSidebar();applyT();
+  }
 }
 init();
 </script>
