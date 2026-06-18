@@ -487,8 +487,8 @@ canvas#evo-chart{width:100%!important;height:100%!important}
 /* ═══ SQL ADICIONAL REQUERIDO EN SUPABASE (correr una sola vez):
    ALTER TABLE kpis ADD COLUMN IF NOT EXISTS owner text;
 ═══════════════════════════════════════════════════════════ */
-const DEFAULT_SUPABASE_URL = 'https://swzumhtlummrrunbvzua.supabase.co';
-const DEFAULT_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN3enVtaHRsdW1tcnJ1bmJ2enVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyMTI5MjIsImV4cCI6MjA5Njc4ODkyMn0.wic58rZ7FVlmzb-YCqW2s4yplISl0ali9ODT_Ac9jaM';
+const DEFAULT_SUPABASE_URL = 'https://TU_PROJECT_URL.supabase.co';
+const DEFAULT_SUPABASE_KEY = 'TU_ANON_KEY';
 
 /* ═══ CONSTANTES ══════════════════════════════════════════════ */
 const AREA_COLORS=['#3b5bdb','#2f9e44','#e03131','#e67700','#7048e8','#0c8599','#d6336c','#5c940d','#d9480f','#1971c2'];
@@ -645,7 +645,21 @@ function renderSidebar(){
 }
 function tHTML(t,color){return'<div class="t-item'+(UI.activeTreeId===t.id?' active':'')+'" data-tid="'+t.id+'"><span class="t-ic" style="color:'+color+'">&#9658;</span><span class="t-nm">'+t.name+'</span><div class="t-acts"><button class="ic-btn" data-ak="'+t.id+'" title="+KPI">&#xFF0B;</button><button class="ic-btn" data-et="'+t.id+'">&#9998;</button><button class="ic-btn del" data-dt="'+t.id+'">&#x2715;</button></div></div>';}
 
-function selectTree(id){UI.activeTreeId=id;UI.collapsed=loadCollapsed(id);UI.highlighted=null;document.getElementById('search-input').value='';refreshYears();renderSidebar();renderCanvas();const tree=gTree(id);document.getElementById('s-tree').textContent=tree?tree.name:'-';refreshDataYearSel();}
+function selectTree(id){
+  UI.activeTreeId=id;
+  UI.collapsed=loadCollapsed(id);
+  UI.highlighted=null;
+  UI.currentMonth='';
+  UI.currentYear='';
+  document.getElementById('search-input').value='';
+  refreshYears();
+  renderSidebar();
+  renderCanvas();
+  const tree=gTree(id);
+  document.getElementById('s-tree').textContent=tree?tree.name:'-';
+  refreshDataYearSel();
+  if(UI.activeTab==='data') renderDataTab();
+}
 
 /* ═══ CANVAS ══════════════════════════════════════════════════ */
 function buildTree(tree,month){
@@ -688,7 +702,11 @@ function renderCanvas(){
       '<div class="c-foot"><div><div class="c-lbl">Cumpl.</div><div class="c-comp '+(color!=='grey'?color:'')+'">'+(c!==null?c.toFixed(1)+'%':'-')+'</div></div>'+
       (nd?'<span style="font-size:9px;color:var(--tx3)">s/d</span>':'<div class="sem '+color+'"></div>')+'</div>';
     card.addEventListener('mouseenter',e=>showTT(e,node,r,t,c));card.addEventListener('mousemove',moveTT);card.addEventListener('mouseleave',hideTT);
-    card.addEventListener('click',e=>{if(e.target.dataset.tog){e.stopPropagation();togCol(e.target.dataset.tog);}else if(!e.target.closest('.c-tog')){openEvoChart(node);}});
+    card.addEventListener('click',e=>{
+      const togEl=e.target.closest('[data-tog]');
+      if(togEl){e.stopPropagation();togCol(togEl.dataset.tog);}
+      else if(!e.target.closest('.c-tog')){openEvoChart(node);}
+    });
     nEl.appendChild(card);
   });
   updateStatus({gr,rd,yw,total:all.length});
@@ -1052,6 +1070,11 @@ document.getElementById('btn-import-excel').addEventListener('click',()=>documen
 document.getElementById('import-file-input').addEventListener('change',function(){if(this.files[0])importExcel(this.files[0]);this.value='';});
 
 async function init(){
+  // si hay credenciales hardcodeadas y no estan en localStorage, guardarlas
+  var cfg=getConfig();
+  if(!cfg.url && !DEFAULT_SUPABASE_URL.includes('TU_PROJECT_URL')){
+    saveConfig(DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_KEY);
+  }
   var ok=false;
   try{ ok=initSupabase(); }catch(e){ setSyncState('error','Error init'); }
   renderSidebar();
