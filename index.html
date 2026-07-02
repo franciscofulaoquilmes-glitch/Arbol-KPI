@@ -312,6 +312,12 @@ tr:hover td{background:var(--sur2)}
             <input type="number" id="nyi" min="2020" max="2035" placeholder="2026" style="height:26px;width:66px;border:1px solid var(--brd);border-radius:var(--rs);background:var(--sur2);font-family:Inter,sans-serif;font-size:12px;padding:0 8px;outline:none;color:var(--tx)"/>
             <button class="btn pri" id="bayr">+</button>
           </div>
+          <div class="dg">
+            <span class="lbl">Mes</span>
+            <select class="sel" id="mmasel" style="min-width:72px"></select>
+            <button class="btn" id="baddm" title="Agregar mes">+ Mes</button>
+            <button class="btn" id="bdelm" title="Eliminar mes" style="color:var(--rd)">- Mes</button>
+          </div>
           <button class="btn pri" id="bsave">Guardar</button>
           <button class="btn" id="bxls">Exportar XLS</button>
           <button class="btn" id="bixls">Importar XLS</button>
@@ -533,7 +539,10 @@ function mlbl(m){const[y,mo]=m.split('-');return MS[parseInt(mo,10)-1]+'-'+y.sli
 function gTree(id){return DB.trees.find(t=>t.id===id);}
 function gArea(id){return DB.areas.find(a=>a.id===id);}
 function tYears(t){return[...new Set((t.data||[]).map(d=>d.month.slice(0,4)))].sort();}
-function tMonths(t,y){return[...new Set((t.data||[]).filter(d=>d.month.startsWith(y+'-')).map(d=>d.month))].sort();}
+function tMonths(t,y){
+  // todos los meses que existen en la tabla para ese anio
+  return[...new Set((t.data||[]).filter(d=>d.month.startsWith(y+'-')).map(d=>d.month))].sort();
+}
 
 // ─── YEAR/MONTH ───────────────────────────────────
 function refreshYears(){
@@ -618,11 +627,21 @@ function selectTree(id){
   UI.hl=null;
   UI.year='';UI.month='';
   document.getElementById('srch').value='';
+
+  // posicionar en el ultimo mes con real cargado; si no hay, el ultimo con target; si no, el ultimo mes
+  const tree=gTree(id);
+  if(tree){
+    const withReal=(tree.data||[]).filter(d=>d.real!==null).sort((a,b)=>b.month.localeCompare(a.month));
+    const withAny=(tree.data||[]).filter(d=>d.real!==null||d.target!==null).sort((a,b)=>b.month.localeCompare(a.month));
+    const anyMonth=(tree.data||[]).sort((a,b)=>b.month.localeCompare(a.month));
+    const best=withReal[0]||withAny[0]||anyMonth[0];
+    if(best){UI.year=best.month.slice(0,4);UI.month=best.month;}
+  }
+
   refreshYears();
   renderSB();
   renderCanvas();
-  const t=gTree(id);
-  document.getElementById('stree').textContent=t?t.name:'-';
+  document.getElementById('stree').textContent=tree?tree.name:'-';
   refreshDysel();
   if(UI.tab==='vd')renderData();
 }
@@ -831,13 +850,25 @@ function renderData(){
   });
   html+='</tbody></table>';
   wrap.innerHTML=html;ct.appendChild(wrap);
+  refreshMmasel();
   wrap.querySelectorAll('.ci').forEach(inp=>inp.addEventListener('input',()=>inp.classList.add('chg')));
   wrap.querySelectorAll('.ek').forEach(btn=>btn.addEventListener('click',()=>openKpi(UI.tid,btn.dataset.kid)));
   wrap.querySelectorAll('.dk').forEach(btn=>btn.addEventListener('click',()=>confirmDel('kpi',btn.dataset.kid)));
 }
 async function saveData(){
   const tree=gTree(UI.tid);if(!tree)return;
-  const inputs=document.querySelectorAll('.ci');const map={};
+  const inputs=document.querySelectorAll('.ci');
+
+  // Arrancar desde TODOS los datos existentes del anio (no solo los visibles)
+  // para no borrar datos de otros responsables cuando hay filtro activo
+  const existingYear=(tree.data||[]).filter(d=>d.month.startsWith(UI.dynYear+'-'));
+  const map={};
+  existingYear.forEach(d=>{
+    const key=d.kpiId+'__'+d.month;
+    map[key]={kpiId:d.kpiId,month:d.month,real:d.real,target:d.target,ytdReal:d.ytdReal,ytdTarget:d.ytdTarget};
+  });
+
+  // Superponer solo los inputs visibles en pantalla
   inputs.forEach(inp=>{
     const key=inp.dataset.kpi+'__'+inp.dataset.month;
     if(!map[key])map[key]={kpiId:inp.dataset.kpi,month:inp.dataset.month,real:null,target:null,ytdReal:null,ytdTarget:null};
@@ -845,6 +876,7 @@ async function saveData(){
     map[key][inp.dataset.f]=isNaN(v)?null:v;
     inp.classList.remove('chg');
   });
+
   const other=(tree.data||[]).filter(d=>!d.month.startsWith(UI.dynYear+'-'));
   tree.data=[...other,...Object.values(map)];
   await sbData(tree,UI.dynYear);
@@ -866,6 +898,49 @@ async function addYear(){
   UI.dynYear=yr;refreshYears();refreshDysel();renderData();
   document.getElementById('nyi').value='';toast('Ano '+yr+' agregado');
 }
+// ─── MONTH MANAGEMENT ─────────────────────────────
+function refreshMmasel(){
+  const tree=gTree(UI.tid);const sel=document.getElementById('mmasel');
+  if(!tree||!UI.dynYear){sel.innerHTML='<option>-</option>';return;}
+  // show all 12 months, mark which exist
+  const existing=new Set((tree.data||[]).filter(d=>d.month.startsWith(UI.dynYear+'-')).map(d=>d.month));
+  const ML2=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  sel.innerHTML=Array.from({length:12},(_,i)=>{
+    const m=mkey(UI.dynYear,i+1);
+    const has=existing.has(m);
+    return'<option value="'+m+'"'+(has?' style="font-weight:600"':' style="color:var(--tx3)"')+'>'+ML2[i]+(has?'':' (sin datos)')+'</option>';
+  }).join('');
+}
+async function addMonth(){
+  const tree=gTree(UI.tid);if(!tree)return;
+  const m=document.getElementById('mmasel').value;if(!m)return;
+  const existing=(tree.data||[]).some(d=>d.month===m&&d.kpiId===(tree.kpis[0]?.id));
+  if(existing){toast('Ese mes ya existe');return;}
+  if(!tree.data)tree.data=[];
+  (tree.kpis||[]).forEach(k=>{
+    if(!tree.data.find(d=>d.kpiId===k.id&&d.month===m))
+      tree.data.push({kpiId:k.id,month:m,real:null,target:null,ytdReal:null,ytdTarget:null});
+  });
+  await sbData(tree,UI.dynYear);
+  refreshYears();refreshDysel();refreshMmasel();renderData();
+  toast('Mes '+mlbl(m)+' agregado');
+}
+async function delMonth(){
+  const tree=gTree(UI.tid);if(!tree)return;
+  const m=document.getElementById('mmasel').value;if(!m)return;
+  const hasData=(tree.data||[]).some(d=>d.month===m&&(d.real!==null||d.target!==null));
+  if(hasData){
+    if(!confirm('El mes '+mlbl(m)+' tiene datos cargados. Seguro que lo queres eliminar?'))return;
+  }
+  tree.data=(tree.data||[]).filter(d=>d.month!==m);
+  // delete from supabase
+  if(SB){setSS('saving','...');await SB.from('kpi_data').delete().eq('tree_id',tree.id).eq('month',m);setSS('ok','Listo');}
+  // if current month was deleted, move to previous
+  if(UI.month===m){UI.month='';}
+  refreshYears();refreshDysel();refreshMmasel();renderData();renderCanvas();
+  toast('Mes '+mlbl(m)+' eliminado');
+}
+
 function exportXLS(){
   const tree=gTree(UI.tid);if(!tree){toast('Selecciona un arbol');return;}
   const year=UI.dynYear;if(!year){toast('Selecciona un ano');return;}
@@ -1038,11 +1113,13 @@ document.getElementById('bzo').addEventListener('click',()=>setZ(UI.zoom/1.15));
 document.getElementById('bzr').addEventListener('click',()=>{UI.zoom=1;UI.px=60;UI.py=30;applyT();});
 document.getElementById('bsave').addEventListener('click',saveData);
 document.getElementById('bayr').addEventListener('click',addYear);
-document.getElementById('bdly').addEventListener('click',()=>{UI.dynYear=document.getElementById('dysel').value;renderData();});
-document.getElementById('dysel').addEventListener('change',function(){UI.dynYear=this.value;renderData();});
+document.getElementById('bdly').addEventListener('click',()=>{UI.dynYear=document.getElementById('dysel').value;renderData();refreshMmasel();});
+document.getElementById('dysel').addEventListener('change',function(){UI.dynYear=this.value;renderData();refreshMmasel();});
 document.getElementById('ofilter').addEventListener('change',()=>renderData());
 document.getElementById('bclrf').addEventListener('click',()=>{document.getElementById('ofilter').value='';renderData();});
 document.getElementById('bxls').addEventListener('click',exportXLS);
+document.getElementById('baddm').addEventListener('click',addMonth);
+document.getElementById('bdelm').addEventListener('click',delMonth);
 document.getElementById('bixls').addEventListener('click',()=>document.getElementById('xfile').click());
 document.getElementById('xfile').addEventListener('change',function(){if(this.files[0])importXLS(this.files[0]);this.value='';});
 document.getElementById('bcfg').addEventListener('click',()=>{
